@@ -8,4 +8,4 @@ WORKDIR /app
 COPY . .
 RUN cmake -S . -B build && cmake --build build -j
 
-CMD ["./build/segment"]
+CMD ["./build/segment", "data/samples/shapes.png"]

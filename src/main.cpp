@@ -1,21 +1,26 @@
+#include <exception>
+#include <filesystem>
 #include <iostream>
 
-#include <Eigen/Dense>
+#include "image_io.hpp"
 
-int main() {
-    // A 3x3 matrix and a vector, filled with the comma initializer (row by row).
-    Eigen::Matrix3d A;
-    A << 2, -1, 0,
-        -1, 2, -1,
-         0, -1, 2;
-    Eigen::Vector3d x(1, 2, 3);
+int main(int argc, char** argv) {
+    if (argc != 2) {
+        std::cerr << "usage: " << argv[0] << " <image>\n";
+        return 1;
+    }
 
-    std::cout << "A =\n" << A << "\n\n";
-    std::cout << "x =\n" << x << "\n\n";
+    try {
+        const Image img = load_image(argv[1]);
+        std::cout << argv[1] << ": " << img.width << " x " << img.height << " x "
+                  << img.channels << "\n";
 
-    Eigen::Vector3d y = A * x;
-    std::cout << "y =\n" << y << "\n\n";
-    std::cout << "Norm of y: " << y.norm() << "\n";
-
+        std::filesystem::create_directories("out");
+        save_png("out/copy.png", img);
+        std::cout << "wrote out/copy.png\n";
+    } catch (const std::exception& e) {
+        std::cerr << "error: " << e.what() << "\n";
+        return 1;
+    }
     return 0;
 }
