@@ -13,7 +13,7 @@ endif()
 
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
-add_executable(segment src/main.cpp src/image_io.cpp src/preprocess.cpp)
+add_executable(segment src/main.cpp src/image_io.cpp src/preprocess.cpp src/graph.cpp)
 target_compile_options(segment PRIVATE -Wall -Wextra -Wpedantic)
 # SYSTEM silences warnings from third-party headers we don't own.
 target_include_directories(segment SYSTEM PRIVATE third_party)
