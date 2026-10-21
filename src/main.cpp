@@ -3,14 +3,17 @@
 #include <exception>
 #include <filesystem>
 #include <iostream>
+#include <vector>
 
+#include "clustering.hpp"
+#include "eigensolver.hpp"
 #include "graph.hpp"
 #include "image_io.hpp"
 #include "preprocess.hpp"
 
 namespace {
 
-// Day 5 turns these into command-line flags.
+// Constants for now
 constexpr int kTargetWidth = 160;
 constexpr double kSigma = 1.0;
 // Colour scale for edge weights, on RGB scaled to [0, 1]. Pixels whose colours differ by
@@ -18,6 +21,12 @@ constexpr double kSigma = 1.0;
 constexpr double kSigmaColor = 0.1;
 // Edges lighter than this are dropped to keep W sparse.
 constexpr double kWeightThreshold = 1e-4;
+// Number of segments = number of eigenvectors used.
+constexpr int kNumSegments = 4;
+// Fixed-shift inverse-iteration steps before RQI; see rqi_bench for why this is needed.
+constexpr int kWarmupSteps = 5;
+constexpr int kKmeansIterations = 100;
+constexpr unsigned kSeed = 42;
 
 using Clock = std::chrono::steady_clock;
 
@@ -78,6 +87,29 @@ int main(int argc, char** argv) {
 
         save_matrix_market("out/W.mtx", affinity);
         std::cout << "wrote out/W.mtx\n";
+
+        // Top-k eigenvectors of M by warm-started Rayleigh quotient iteration.
+        start = Clock::now();
+        RqiOptions options;
+        options.warmup_steps = kWarmupSteps;
+        const std::vector<EigenpairResult> eigenpairs =
+            top_eigenpairs_rqi(normalized, kNumSegments, options, kSeed);
+        int factorizations = 0;
+        std::cout << "eigenpairs (RQI):";
+        for (const EigenpairResult& pair : eigenpairs) {
+            std::cout << " " << pair.value << (pair.converged ? "" : " (NOT converged)");
+            factorizations += pair.factorizations;
+        }
+        std::cout << "  (" << factorizations << " LU factorizations, " << ms_since(start)
+                  << " ms)\n";
+
+        // Embed every pixel in R^k, cluster, and paint each cluster with its mean colour.
+        start = Clock::now();
+        const std::vector<int> labels =
+            kmeans(spectral_embedding(eigenvector_matrix(eigenpairs)), kNumSegments, kSeed, kKmeansIterations);
+        save_png("out/segments.png", render_segments(labels, small));
+        std::cout << "k-means k=" << kNumSegments << "  (" << ms_since(start) << " ms)\n";
+        std::cout << "wrote out/segments.png\n";
     } catch (const std::exception& e) {
         std::cerr << "error: " << e.what() << "\n";
         return 1;

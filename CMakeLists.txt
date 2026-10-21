@@ -13,8 +13,19 @@ endif()
 
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
-add_executable(segment src/main.cpp src/image_io.cpp src/preprocess.cpp src/graph.cpp)
-target_compile_options(segment PRIVATE -Wall -Wextra -Wpedantic)
+# The numerical core, shared by the `segment` program and the `rqi_bench` experiments.
+add_library(segcore STATIC
+  src/image_io.cpp src/preprocess.cpp src/graph.cpp src/eigensolver.cpp src/clustering.cpp)
+target_compile_options(segcore PRIVATE -Wall -Wextra -Wpedantic)
+target_include_directories(segcore PUBLIC src)
 # SYSTEM silences warnings from third-party headers we don't own.
-target_include_directories(segment SYSTEM PRIVATE third_party)
-target_link_libraries(segment PRIVATE Eigen3::Eigen)
+target_include_directories(segcore SYSTEM PRIVATE third_party)
+target_link_libraries(segcore PUBLIC Eigen3::Eigen)
+
+add_executable(segment src/main.cpp)
+target_compile_options(segment PRIVATE -Wall -Wextra -Wpedantic)
+target_link_libraries(segment PRIVATE segcore)
+
+add_executable(rqi_bench src/rqi_experiments.cpp)
+target_compile_options(rqi_bench PRIVATE -Wall -Wextra -Wpedantic)
+target_link_libraries(rqi_bench PRIVATE segcore)
