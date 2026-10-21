@@ -1,5 +1,6 @@
 #include "eigensolver.hpp"
 
+#include <algorithm>
 #include <random>
 #include <stdexcept>
 
@@ -53,6 +54,10 @@ public:
         return solver_.info() == Eigen::Success;
     }
 
+    long long factor_nonzeros() const {
+        return static_cast<long long>(solver_.nnzL() + solver_.nnzU());
+    }
+
     Eigen::VectorXd solve(const Eigen::VectorXd& right_hand_side) {
         return solver_.solve(right_hand_side);
     }
@@ -86,6 +91,7 @@ EigenpairResult rayleigh_quotient_iteration(
     if (options.warmup_steps > 0) {
         solver.factorize(options.warmup_shift);
         ++result.factorizations;
+        result.peak_factor_nonzeros = std::max(result.peak_factor_nonzeros, solver.factor_nonzeros());
         for (int step = 0; step < options.warmup_steps; ++step) {
             vector = solver.solve(vector);
             project_out(vector, found_vectors);
@@ -105,6 +111,7 @@ EigenpairResult rayleigh_quotient_iteration(
 
         const bool nonsingular = solver.factorize(value);
         ++result.factorizations;
+        result.peak_factor_nonzeros = std::max(result.peak_factor_nonzeros, solver.factor_nonzeros());
         ++result.iterations;
         if (!nonsingular) {
             result.converged = true;
@@ -129,22 +136,27 @@ EigenpairResult rayleigh_quotient_iteration(
     return result;
 }
 
-std::vector<EigenpairResult> top_eigenpairs_rqi(
+void extend_eigenpairs(
     const SparseMatrix& matrix,
+    std::vector<EigenpairResult>& eigenpairs,
     int count,
     const RqiOptions& options,
     unsigned seed) {
     const Eigen::Index size = matrix.rows();
-    std::mt19937 generator(seed);
     std::normal_distribution<double> gaussian(0.0, 1.0);
 
-    std::vector<EigenpairResult> results;
     // Columns are the eigenvectors found so far. They are orthonormal (up to the tolerance), because each of them written in terms of previously computed vectors
     Eigen::MatrixXd found_vectors(size, 0);
+    if (!eigenpairs.empty()) {
+        found_vectors = eigenvector_matrix(eigenpairs);
+    }
 
-    for (int index = 0; index < count; ++index) {
+    for (int index = static_cast<int>(eigenpairs.size()); index < count; ++index) {
         // A random Gaussian vector has a nonzero component along every eigenvector
         // with probability 1, so we have convergence.
+        // Each pair gets its own generator seeded with seed + index, so pair `index` gets the
+        // same start vector no matter how many pairs were computed in earlier calls.
+        std::mt19937 generator(seed + static_cast<unsigned>(index));
         Eigen::VectorXd start(size);
         for (Eigen::Index i = 0; i < size; ++i) {
             start[i] = gaussian(generator);
@@ -154,8 +166,17 @@ std::vector<EigenpairResult> top_eigenpairs_rqi(
 
         found_vectors.conservativeResize(Eigen::NoChange, found_vectors.cols() + 1);
         found_vectors.col(found_vectors.cols() - 1) = pair.vector;
-        results.push_back(std::move(pair));
+        eigenpairs.push_back(std::move(pair));
     }
+}
+
+std::vector<EigenpairResult> top_eigenpairs_rqi(
+    const SparseMatrix& matrix,
+    int count,
+    const RqiOptions& options,
+    unsigned seed) {
+    std::vector<EigenpairResult> results;
+    extend_eigenpairs(matrix, results, count, options, seed);
     return results;
 }
 

@@ -2,3 +2,7 @@ build/
 build-*/
 .vscode/
 out/
+*.jpeg
+web/node_modules/
+web/dist/
+.cache/

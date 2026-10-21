@@ -66,15 +66,17 @@ Eigen::MatrixXd kmeans_plus_plus_centres(const Eigen::MatrixXd& points, int k,
     return centres;
 }
 
-// Lloyd's algorithm from the given centres. Fills `labels` and returns the inertia:
-// the sum of squared distances from each point to its centre (lower is better).
+// Lloyd's algorithm from the given centres. Fills `labels` and `iterations_used`, and returns
+// the inertia: the sum of squared distances from each point to its centre (lower is better).
 double lloyd(const Eigen::MatrixXd& points, Eigen::MatrixXd centres, int max_iterations,
-             std::vector<int>& labels) {
+             std::vector<int>& labels, int& iterations_used) {
     const Eigen::Index num_points = points.rows();
     const int k = static_cast<int>(centres.rows());
     labels.assign(static_cast<std::size_t>(num_points), -1);
+    iterations_used = 0;
 
     for (int iteration = 0; iteration < max_iterations; ++iteration) {
+        ++iterations_used;
         // ---- Step 1: assign each point to its nearest centre. ----
         bool any_label_changed = false;
         for (Eigen::Index point = 0; point < num_points; ++point) {
@@ -114,7 +116,7 @@ double lloyd(const Eigen::MatrixXd& points, Eigen::MatrixXd centres, int max_ite
 }  // namespace
 
 std::vector<int> kmeans(const Eigen::MatrixXd& points, int k, unsigned seed, int max_iterations,
-                        int restarts) {
+                        int restarts, int* iterations) {
     if (k < 1 || k > points.rows()) {
         throw std::invalid_argument("kmeans: need 1 <= k <= number of points");
     }
@@ -126,13 +128,17 @@ std::vector<int> kmeans(const Eigen::MatrixXd& points, int k, unsigned seed, int
     std::vector<int> best_labels;
     double best_inertia = std::numeric_limits<double>::infinity();
     std::vector<int> labels;
+    int iterations_used = 0;
 
     for (int attempt = 0; attempt < restarts; ++attempt) {
         const Eigen::MatrixXd centres = kmeans_plus_plus_centres(points, k, generator);
-        const double inertia = lloyd(points, centres, max_iterations, labels);
+        const double inertia = lloyd(points, centres, max_iterations, labels, iterations_used);
         if (inertia < best_inertia) {
             best_inertia = inertia;
             best_labels = labels;
+            if (iterations != nullptr) {
+                *iterations = iterations_used;
+            }
         }
     }
     return best_labels;

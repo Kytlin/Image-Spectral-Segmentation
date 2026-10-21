@@ -14,9 +14,10 @@ Eigen::MatrixXd spectral_embedding(const Eigen::MatrixXd& eigenvectors);
 // k-means on the rows of `points`: k-means++ seeding, then Lloyd's algorithm (assign each point
 // to its nearest centre, move each centre to the mean of its points, until no label changes or
 // max_iterations). Runs `restarts` times and keeps the run with the lowest inertia.
-// Returns one label in [0, k) per row of `points`.
+// Returns one label in [0, k) per row of `points`. If `iterations` isn't null, it receives the
+// number of Lloyd iterations of the kept run.
 std::vector<int> kmeans(const Eigen::MatrixXd& points, int k, unsigned seed, int max_iterations,
-                        int restarts = 5);
+                        int restarts = 5, int* iterations = nullptr);
 
 // Paints every pixel with the mean colour of its cluster. `labels` has one entry per pixel.
 Image render_segments(const std::vector<int>& labels, const Image& image);

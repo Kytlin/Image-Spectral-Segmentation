@@ -1,0 +1,42 @@
+# docker compose up --build    -> app on http://localhost:8080
+# docker compose down          -> stop (the database volume survives)
+# docker compose down -v       -> stop and delete the database (re-runs db/schema.sql next time)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      # Development-only credentials. A real deployment reads secrets from outside the repo.
+      POSTGRES_USER: seg
+      POSTGRES_PASSWORD: seg
+      POSTGRES_DB: seg
+    volumes:
+      # A named volume keeps the data across container restarts.
+      - pgdata:/var/lib/postgresql/data
+      # Scripts in this folder run once, when the volume is first initialized.
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      # Host port 5433, so it doesn't clash with another PostgreSQL on 5432.
+      # Connect from the host with: psql postgresql://seg:seg@localhost:5433/seg
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seg -d seg"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    environment:
+      # Inside the compose network, the database's hostname is its service name: db.
+      DATABASE_URL: postgresql://seg:seg@db:5432/seg
+      CACHE_CAPACITY: "20"
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy  # wait until pg_isready succeeds, not just until it starts
+
+volumes:
+  pgdata:

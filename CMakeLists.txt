@@ -29,3 +29,17 @@ target_link_libraries(segment PRIVATE segcore)
 add_executable(rqi_bench src/rqi_experiments.cpp)
 target_compile_options(rqi_bench PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(rqi_bench PRIVATE segcore)
+
+# HTTP server for the web frontend. Needs libpq (apt: libpq-dev). Skipped if libpq isn't found,
+# so the CLI and the experiments still build without it.
+find_package(PostgreSQL)
+find_package(Threads REQUIRED)
+if(PostgreSQL_FOUND)
+  add_executable(seg_server
+    src/server/main.cpp src/server/base64.cpp src/server/database.cpp src/server/run_cache.cpp)
+  target_compile_options(seg_server PRIVATE -Wall -Wextra -Wpedantic)
+  target_include_directories(seg_server SYSTEM PRIVATE third_party)
+  target_link_libraries(seg_server PRIVATE segcore PostgreSQL::PostgreSQL Threads::Threads)
+else()
+  message(STATUS "libpq not found: skipping seg_server")
+endif()

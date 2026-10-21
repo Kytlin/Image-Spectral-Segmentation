@@ -25,6 +25,8 @@ struct EigenpairResult {
     int iterations = 0;          // RQI steps taken (not counting warm-up)
     int factorizations = 0;      // sparse LU factorizations done (warm-up shares one)
     bool converged = false;
+    // Nonzeros in the L and U factors of the largest factorization (for memory estimates).
+    long long peak_factor_nonzeros = 0;
     // Residual ||M v - mu v|| after the warm-up and after every RQI step.
     std::vector<double> residual_history;
 };
@@ -44,6 +46,17 @@ EigenpairResult rayleigh_quotient_iteration(
 // eigenpairs. Without warm-up there is no such guarantee (that's the point of the experiments).
 std::vector<EigenpairResult> top_eigenpairs_rqi(
     const SparseMatrix& matrix,
+    int count,
+    const RqiOptions& options,
+    unsigned seed);
+
+// Appends eigenpairs to `eigenpairs` (found by earlier calls, or empty) until it holds `count`.
+// New pairs are deflated against the existing ones. Pair i always starts from the same random
+// vector (seeded with seed + i), so computing 3 pairs and later extending to 5 gives the same
+// 5 pairs as computing 5 at once. The server relies on this to grow its cache when k increases.
+void extend_eigenpairs(
+    const SparseMatrix& matrix,
+    std::vector<EigenpairResult>& eigenpairs,
     int count,
     const RqiOptions& options,
     unsigned seed);

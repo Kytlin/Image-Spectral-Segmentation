@@ -1,0 +1,38 @@
+# Multi-stage build: each FROM starts a fresh image, and only the files copied out of a
+# stage reach the final image. Node and the C++ compiler stay behind, so the final image
+# holds just the server binary, the built web page, and libpq.
+
+# ---- Stage 1: build the React app into static files (web/dist). ----
+FROM node:22-alpine AS web
+WORKDIR /web
+# Copy the dependency lists first: Docker caches this layer, so `npm ci` only re-runs when
+# package.json or package-lock.json change, not on every source edit.
+COPY web/package.json web/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY web/ ./
+RUN npm run build
+
+# ---- Stage 2: compile the C++ server. ----
+FROM ubuntu:24.04 AS build
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       build-essential cmake ninja-build libeigen3-dev libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY CMakeLists.txt ./
+COPY src ./src
+COPY third_party ./third_party
+RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build --target seg_server
+
+# ---- Stage 3: the runtime image. ----
+FROM ubuntu:24.04
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=build /src/build/seg_server ./seg_server
+COPY --from=web /web/dist ./web/dist
+ENV PORT=8080 STATIC_DIR=/app/web/dist
+EXPOSE 8080
+CMD ["./seg_server"]
