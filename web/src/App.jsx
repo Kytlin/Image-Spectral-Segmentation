@@ -50,9 +50,10 @@ export default function App() {
   // useRef holds a value that survives re-renders without causing one. Requests compare it
   // with the session they started in, so an answer arriving after Reset is ignored.
   const sessionRef = useRef(0);
-  // Recent Jobs hides runs created before this time (set by Reset). Saved logs stay in the
-  // database, so reloading the page shows them again.
-  const [historySince, setHistorySince] = useState(0);
+  // null shows saved history on initial load. After Reset, show only runs created in this
+  // session. Use identity rather than comparing the browser's clock with database timestamps.
+  // Saved logs stay in the database, so reloading the page shows them again.
+  const [sessionRunIds, setSessionRunIds] = useState(null);
 
   // Decoding the base64 labels is not free, so only redo it when `segmentation` changes.
   const labels = useMemo(
@@ -63,20 +64,37 @@ export default function App() {
   // useCallback keeps the same function object between renders, so effects that depend on
   // these functions don't re-run on every render.
   const refreshHistory = useCallback(async () => {
+    const session = sessionRef.current;
     try {
-      setHistory(await listRuns());
+      const runs = await listRuns();
+      if (session !== sessionRef.current) return;
+      setHistory(runs);
     } catch (err) {
+      if (session !== sessionRef.current) return;
       setError(`Could not load history: ${err.message}`);
     }
   }, []);
 
   const showRunLog = useCallback(async (runId) => {
+    const session = sessionRef.current;
     try {
-      setLogRun(await getRun(runId));
+      const result = await getRun(runId);
+      if (session !== sessionRef.current) return;
+      setLogRun(result);
     } catch (err) {
+      if (session !== sessionRef.current) return;
       setError(`Could not load run #${runId}: ${err.message}`);
     }
   }, []);
+
+  const resetButtonStyle = {
+    backgroundColor: '#D22B2B', 
+    color: 'white',
+    padding: '0.5em',
+    border: 'none',
+    borderRadius: '5px',      
+    fontSize: '16px'
+  };
 
   // Load the history once, when the page opens. The empty-ish dependency list means
   // "run after the first render only" (refreshHistory never changes).
@@ -120,6 +138,7 @@ export default function App() {
         blurSigma,
       });
       if (session !== sessionRef.current) return; // Reset was pressed while computing
+      setSessionRunIds((ids) => (ids === null ? null : new Set([...ids, result.run.id])));
       setRun(result.run);
       setSegmentation(result.segmentation);
       setSaveState('idle');
@@ -172,14 +191,17 @@ export default function App() {
   // ---- Save to log: the user decides which results go into the experiment log. ----
   async function handleSave() {
     if (!run || !segmentation) return;
+    const session = sessionRef.current;
     setSaveState('saving');
     try {
       const saved = await saveResult(run.id, segmentation.result_id);
+      if (session !== sessionRef.current) return;
       setSaveState('saved');
       setSavedExperimentId(saved.experiment_id);
       refreshHistory();
       showRunLog(run.id);
     } catch (err) {
+      if (session !== sessionRef.current) return;
       setSaveState('idle');
       setError(err.status === 410
         ? 'This run has expired on the server. Press Run Segmentation to compute it again.'
@@ -189,13 +211,16 @@ export default function App() {
 
   // ---- Deleting from the log. ----
   async function handleDeleteExperiment(experimentId) {
+    const session = sessionRef.current;
     try {
       await deleteExperiment(experimentId);
+      if (session !== sessionRef.current) return;
       // Deleted the saved copy of the result on screen: allow saving it again.
       if (experimentId === savedExperimentId) setSaveState('idle');
       refreshHistory(); // a run whose log becomes empty drops out of Recent Jobs
       showRunLog(logRun.id);
     } catch (err) {
+      if (session !== sessionRef.current) return;
       setError(`Could not delete: ${err.message}`);
     }
   }
@@ -203,12 +228,15 @@ export default function App() {
   async function handleClearLog() {
     // window.confirm shows the browser's OK / Cancel dialog and returns true on OK.
     if (!window.confirm(`Delete all ${logRun.experiments.length} entries of run #${logRun.id}?`)) return;
+    const session = sessionRef.current;
     try {
       await clearLog(logRun.id);
+      if (session !== sessionRef.current) return;
       if (logRun.id === run?.id) setSaveState('idle');
       refreshHistory();
       showRunLog(logRun.id);
     } catch (err) {
+      if (session !== sessionRef.current) return;
       setError(`Could not clear the log: ${err.message}`);
     }
   }
@@ -229,7 +257,8 @@ export default function App() {
     setBusy(false);
     setError(null);
     setLogRun(null);
-    setHistorySince(Date.now());
+    setHistory([]);
+    setSessionRunIds(new Set());
   }
 
   // ---- Layout. JSX looks like HTML, but {...} embeds JavaScript values, and capitalized tags
@@ -242,9 +271,9 @@ export default function App() {
           <h1>Spectral Image Segmentation</h1>
           <p>Normalized cuts with Rayleigh quotient iteration</p>
         </div>
-        <button type="button" className="button secondary topbar-action" onClick={handleReset}
+        <button style={resetButtonStyle} type="button" className="button secondary topbar-action" onClick={handleReset}
           title="Clear the page and restore default settings">
-          ↺ Reset
+          <b>Reset</b>
         </button>
       </header>
 
@@ -276,7 +305,7 @@ export default function App() {
           />
           <JobInfoCard image={image} run={run} />
           <RecentJobs
-            runs={history.filter((job) => job.created_at_ms >= historySince)}
+            runs={history.filter((job) => sessionRunIds === null || sessionRunIds.has(job.id))}
             selectedRunId={logRun?.id}
             onSelect={showRunLog}
             onRefresh={refreshHistory}
