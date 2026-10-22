@@ -24,9 +24,9 @@ Run `docker compose up --build` in terminal and then go to http://localhost:8080
 
 ## Project Structure
 
-<br>
-
-![Project Diagram](ref/img_seg_project_diagram.png)
+<p align="center">
+  <img src="ref/img_seg_project_diagram.png" width="70%">
+</p>
 
 | File | Purpose |
 | --- | --- |
