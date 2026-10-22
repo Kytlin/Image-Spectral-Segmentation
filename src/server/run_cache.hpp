@@ -19,7 +19,7 @@ struct CachedRun {
     // HTTP requests run on several threads. Two slider requests for the same run must not
     // extend `eigenpairs` at the same time, so whoever uses this run locks this mutex first.
     std::mutex mutex;
-    SparseMatrix normalized;                  // M = D^{-1/2} W D^{-1/2}
+    SparseMatrix normalized; // L_sym = I - M, where M = D^{-1/2} W D^{-1/2}
     std::vector<EigenpairResult> eigenpairs;  // grows as larger k values are requested
 
     // The latest segmentation result, kept until the user saves it to the experiment log.

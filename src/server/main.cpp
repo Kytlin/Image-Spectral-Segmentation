@@ -156,7 +156,7 @@ json segment_cached_run(CachedRun& run, int k, ExperimentRecord& record, double 
     const auto kmeans_start = Clock::now();
     const std::vector<int> labels =
         kmeans(spectral_embedding(eigenvector_matrix(used)), k, kSeed, kKmeansIterations,
-               /*restarts=*/5, &record.kmeans_iterations);
+               5, &record.kmeans_iterations);
     record.kmeans_ms = ms_since(kmeans_start);
     record.runtime_ms = graph_ms + record.eigen_ms + record.kmeans_ms;
 
@@ -448,7 +448,7 @@ int main() {
         RunCache cache(cache_capacity);
         httplib::Server server;
 
-        // Runs above ~2 MB of JSON are not something this frontend sends.
+        // Prevents sending more than 2MB of JSON 
         server.set_payload_max_length(4 * 1024 * 1024);
 
         server.Get("/api/health", [](const httplib::Request&, httplib::Response& response) {

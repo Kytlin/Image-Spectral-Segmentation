@@ -26,10 +26,6 @@ add_executable(segment src/main.cpp)
 target_compile_options(segment PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(segment PRIVATE segcore)
 
-add_executable(rqi_bench src/rqi_experiments.cpp)
-target_compile_options(rqi_bench PRIVATE -Wall -Wextra -Wpedantic)
-target_link_libraries(rqi_bench PRIVATE segcore)
-
 # HTTP server for the web frontend. Needs libpq (apt: libpq-dev). Skipped if libpq isn't found,
 # so the CLI and the experiments still build without it.
 find_package(PostgreSQL)
