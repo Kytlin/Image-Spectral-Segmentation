@@ -1,11 +1,6 @@
 # Image Spectral Segmentation
 
-<video style="margin-top: -30px;" width="640" height="360" controls>
-  <source src="ref/img_seg_project_demo.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-
-<br>
+https://github.com/user-attachments/assets/7283db14-2c76-44a8-b695-2ca3e6e86826
 
 The user is prompted to upload an image locally. After clicking the "Run Segmentation" button, the numerical engine splits the uploaded image into regions using <b><i>spectral clustering</i></b> technique. Internally, each pixel becomes a node in a sparse
 similarity graph. The pipeline solves for $k$ leading eigenvectors of the normalized affinity
